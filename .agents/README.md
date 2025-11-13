@@ -1,6 +1,6 @@
 # Agent-Based Development Structure
 
-Эта директория содержит инфраструктуру для agent-based разработки "Проектного Ассистента".
+Эта директория содержит инфраструктуру для agent-based разработки.
 
 ## Структура
 
@@ -172,22 +172,6 @@ Architect → Developer → Reviewer → Tester → Architect
    - Каждое решение должно быть зафиксировано
    - Обновляй module-status.md
 
-## Технический стек
-
-**Платформа:** Yandex Cloud Serverless Functions
-**База данных:** YDB (Yandex Database)
-**Очереди:** Yandex Message Queue
-**Язык:** JavaScript (Node.js)
-**Bot Framework:** Telegraf (Telegram Bot API)
-**AI/LLM:** LangChain + Claude/GPT
-
-**Ключевые паттерны из legacy:**
-- Event Bus Architecture (ContentBus → ReportsBus)
-- Batch AI Processing
-- Timer + Queue System
-- LangChain Tools
-- Dialog Observers
-
 ## Контакты и вопросы
 
 Если агент не понимает спецификацию или нужны уточнения:
@@ -197,4 +181,4 @@ Architect → Developer → Reviewer → Tester → Architect
 
 ---
 
-_Last updated: 2024-11-06_
+
