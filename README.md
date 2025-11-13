@@ -1,184 +1,332 @@
-# Agent-Based Development Structure
+# WhisperFlow
 
-Эта директория содержит инфраструктуру для agent-based разработки.
+> Приложение для транскрипции и форматирования аудио с помощью AI
 
-## Структура
+WhisperFlow - это desktop приложение для Windows с бэкэнд-сервисом, которое позволяет:
+- 🎤 Записывать аудио с микрофона и системного звука
+- ✍️ Транскрибировать речь в текст через OpenAI Whisper
+- 📝 Форматировать текст в различные форматы через GPT
+- 💾 Сохранять историю транскрипций
+- 📤 Экспортировать результаты
+
+## Статус проекта
+
+🚧 **В разработке** - MVP версия
+
+## Архитектура
+
+WhisperFlow состоит из двух основных компонентов:
+
+1. **Desktop App** (Electron + React + TypeScript) - Windows приложение
+2. **Backend API** (FastAPI + Python) - Серверная часть с интеграцией OpenAI
 
 ```
-.agents/
-├── roles/                  # Описание ролей агентов
-│   ├── architect.md        # Роль архитектора
-│   ├── developer.md        # Роль разработчика
-│   ├── reviewer.md         # Роль ревьюера
-│   └── tester.md          # Роль тестировщика
+┌─────────────────────┐
+│   Desktop App       │
+│   (Windows)         │
+└──────────┬──────────┘
+           │ HTTPS/WSS
+           ▼
+┌─────────────────────┐      ┌──────────────┐
+│   Backend API       │─────▶│  OpenAI API  │
+│   (FastAPI)         │      │  Whisper+GPT │
+└──────────┬──────────┘      └──────────────┘
+           │
+           ▼
+┌─────────────────────┐
+│   PostgreSQL        │
+│   + Redis           │
+└─────────────────────┘
+```
+
+## Быстрый старт
+
+### Desktop приложение
+
+```bash
+cd desktop
+pnpm install
+pnpm dev
+```
+
+Подробнее: [desktop/README.md](desktop/README.md)
+
+### Backend сервис
+
+```bash
+# С Docker (рекомендуется)
+docker-compose up -d
+
+# Без Docker
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Подробнее: [backend/README.md](backend/README.md)
+
+## Документация
+
+### Основная документация
+
+- 📖 [**ARCHITECTURE.md**](ARCHITECTURE.md) - Детальная архитектура системы
+- 🛠 [**TECH_STACK.md**](TECH_STACK.md) - Технологический стек и библиотеки
+- 🖥 [**INFRASTRUCTURE.md**](INFRASTRUCTURE.md) - Требования к серверу и развертывание
+
+### Компонентная документация
+
+- [Desktop App README](desktop/README.md) - Разработка desktop приложения
+- [Backend README](backend/README.md) - Разработка backend API
+
+## Требования
+
+### Desktop приложение
+
+- Windows 10/11
+- Node.js 18+
+- pnpm 8+
+
+### Backend сервис
+
+- Python 3.11+
+- PostgreSQL 16+ (или SQLite для разработки)
+- Redis 7+
+- OpenAI API ключ
+
+### Для развертывания
+
+- VPS сервер (рекомендуется Hetzner CPX21: 3 vCPU, 4GB RAM)
+- Ubuntu 22.04 LTS
+- Docker и Docker Compose
+- Домен с SSL сертификатом
+
+Подробности в [INFRASTRUCTURE.md](INFRASTRUCTURE.md)
+
+## MVP Функционал
+
+### ✅ Desktop приложение
+
+- [ ] Запись аудио с микрофона
+- [ ] Запись системного звука
+- [ ] Загрузка аудио файлов
+- [ ] Отправка на транскрипцию
+- [ ] Отображение результатов в реальном времени
+- [ ] Форматирование текста (5 базовых форматов)
+- [ ] История транскрипций
+- [ ] Экспорт результатов (TXT, MD, DOCX)
+- [ ] Настройки приложения
+
+### ✅ Backend API
+
+- [ ] Endpoint для загрузки аудио
+- [ ] Интеграция с Whisper API
+- [ ] Интеграция с GPT API
+- [ ] Асинхронная обработка через Celery
+- [ ] WebSocket для real-time обновлений
+- [ ] История транскрипций
+- [ ] Rate limiting
+- [ ] Логирование и мониторинг
+
+## Технологический стек
+
+### Frontend (Desktop)
+
+- **Electron** 28+ - Desktop framework
+- **React** 18+ - UI library
+- **TypeScript** 5+ - Type safety
+- **Vite** - Build tool
+- **Tailwind CSS** - Styling
+- **Zustand** - State management
+
+### Backend
+
+- **FastAPI** - Python web framework
+- **SQLAlchemy** - ORM
+- **PostgreSQL** - Database
+- **Redis** - Cache & queue
+- **Celery** - Task queue
+- **OpenAI SDK** - API integration
+
+Полный список в [TECH_STACK.md](TECH_STACK.md)
+
+## Структура проекта
+
+```
+wsprflw/
+├── desktop/                 # Electron desktop app
+│   ├── src/
+│   │   ├── main/           # Electron main process
+│   │   ├── renderer/       # React app
+│   │   └── preload/        # Preload scripts
+│   ├── package.json
+│   └── README.md
 │
-├── workflow/              # Процессы и tracking
-│   ├── development-process.md  # Процесс разработки
-│   └── module-status.md       # Статус модулей
+├── backend/                # FastAPI backend
+│   ├── app/
+│   │   ├── api/            # API routes
+│   │   ├── core/           # Configuration
+│   │   ├── models/         # Database models
+│   │   ├── schemas/        # Pydantic schemas
+│   │   └── services/       # Business logic
+│   ├── tests/
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── README.md
 │
-├── architecture/          # Архитектурные документы
-│   ├── system-design.md       # Общая архитектура (создаст Architect)
-│   ├── folder-structure.md    # Структура папок (создаст Architect)
-│   ├── data-flow.md          # Диаграммы потоков данных (создаст Architect)
-│   └── tech-stack.md         # Технологический стек (создаст Architect)
-│
-└── specs/                 # Спецификации модулей
-    ├── modules/           # Спецификации отдельных модулей (создаст Architect)
-    │   └── [module-name].md
-    └── api-contracts/     # API контракты (создаст Architect)
-        └── [module-name]-api.md
+├── docs/                   # Additional documentation
+├── docker-compose.yml      # Docker orchestration
+├── ARCHITECTURE.md         # System architecture
+├── TECH_STACK.md          # Technology stack details
+├── INFRASTRUCTURE.md      # Deployment guide
+└── README.md              # This file
 ```
 
-## Роли агентов
+## Разработка
 
-### 1. Architect (Архитектор)
-**Ответственность:**
-- Проектирование архитектуры системы
-- Написание спецификаций модулей
-- Определение API контрактов
-- Приемка завершенных модулей
+### Установка зависимостей
 
-**Файл роли:** `.agents/roles/architect.md`
+```bash
+# Desktop app
+cd desktop
+pnpm install
 
-### 2. Developer (Разработчик)
-**Ответственность:**
-- Реализация модулей согласно спецификациям
-- Написание unit-тестов
-- Документирование кода
-
-**Файл роли:** `.agents/roles/developer.md`
-
-### 3. Reviewer (Ревьюер)
-**Ответственность:**
-- Code review
-- Проверка соответствия спецификациям
-- Проверка качества кода и тестов
-
-**Файл роли:** `.agents/roles/reviewer.md`
-
-### 4. Tester (Тестировщик)
-**Ответственность:**
-- Integration тестирование
-- Проверка интеграции модулей
-- QA end-to-end сценариев
-
-**Файл роли:** `.agents/roles/tester.md`
-
-## Workflow (Процесс разработки)
-
-```
-Architect → Developer → Reviewer → Tester → Architect
-   ↓           ↓           ↓           ↓        ↓
-  Spec       Code      Review      Tests    Accept
-                         ↓
-                     (если ошибки)
-                         ↓
-                    Developer
+# Backend
+cd backend
+pip install -r requirements-dev.txt
 ```
 
-Подробнее: `.agents/workflow/development-process.md`
+### Локальный запуск
 
-## Tracking прогресса
+```bash
+# Запустить backend (в одном терминале)
+cd backend
+docker-compose up  # или python -m uvicorn app.main:app --reload
 
-Статус всех модулей отслеживается в `.agents/workflow/module-status.md`
+# Запустить desktop app (в другом терминале)
+cd desktop
+pnpm dev
+```
 
-Формат:
-- 🟢 Completed
-- 🟡 In Progress
-- 🔴 Blocked
-- ⚪ Not Started
+### Тестирование
 
-## Как использовать
+```bash
+# Desktop app
+cd desktop
+pnpm test
+pnpm lint
 
-### Запуск Architect для Phase 1 (Architecture):
+# Backend
+cd backend
+pytest
+pytest --cov=app
+```
 
-1. Прочитать:
-   - `project assistant description/FUNCTIONAL_REQUIREMENTS.md`
-   - `project assistant description/PRODUCT_STRATEGY.md`
-   - `.agents/roles/architect.md`
+## Развертывание
 
-2. Создать:
-   - `.agents/architecture/system-design.md`
-   - `.agents/architecture/folder-structure.md`
-   - `.agents/architecture/data-flow.md`
-   - `.agents/architecture/tech-stack.md`
+### Backend на VPS
 
-3. Обновить:
-   - `.agents/workflow/module-status.md` (Phase 1 статус)
+Подробная инструкция в [INFRASTRUCTURE.md](INFRASTRUCTURE.md)
 
-### Запуск Developer для модуля:
+Краткая версия:
 
-1. Прочитать:
-   - `.agents/specs/modules/{module-name}.md`
-   - `.agents/specs/api-contracts/{module-name}-api.md`
-   - `.agents/roles/developer.md`
+```bash
+# На сервере
+git clone <repo-url>
+cd wsprflw
 
-2. Реализовать:
-   - `src/{module-path}/{module-name}.js`
-   - `tests/{module-name}.test.js`
+# Настроить .env
+cp backend/.env.example .env
+nano .env  # добавить OPENAI_API_KEY
 
-3. Передать Reviewer
+# Запустить с Docker
+docker-compose up -d
 
-### Запуск Reviewer:
+# Настроить Nginx + SSL
+sudo certbot --nginx -d api.yourdomain.com
+```
 
-1. Прочитать:
-   - `src/{module-path}/{module-name}.js`
-   - `tests/{module-name}.test.js`
-   - `.agents/specs/modules/{module-name}.md`
-   - `.agents/roles/reviewer.md`
+### Desktop приложение
 
-2. Проверить и вынести вердикт:
-   - ✅ ОДОБРЕНО → передать Tester
-   - ❌ ТРЕБУЕТ ДОРАБОТКИ → вернуть Developer
+```bash
+cd desktop
+pnpm build:win
+```
 
-### Запуск Tester:
+Установщик будет в `desktop/release/{version}/`
 
-1. Прочитать:
-   - Одобренный код модуля
-   - `.agents/specs/modules/{module-name}.md`
-   - `.agents/roles/tester.md`
+## Оценка стоимости
 
-2. Создать integration тесты:
-   - `tests/integration/{module-name}-integration.test.js`
+### Разработка (уже сделано)
 
-3. Вынести вердикт:
-   - ✅ ГОТОВО → передать Architect для приемки
-   - ❌ ТРЕБУЕТСЯ ДОРАБОТКА → вернуть Developer
+- ✅ Архитектура и планирование
+- ✅ Структура проектов
+- ⏳ Разработка MVP (~40-80 часов работы)
 
-## Текущий статус
+### Эксплуатация (ежемесячно)
 
-**Phase:** Preparation (Completed ✅)
+**Для MVP (10 активных пользователей):**
 
-**Next step:**
-1. Запустить **Architect** агента для Phase 1 (Architecture)
-2. Architect создаст архитектурные документы
-3. После Phase 1 → начать разработку core модулей
+- Сервер (Hetzner CPX21): €7.49 (~₽750)
+- OpenAI API (10 пользователей × 10 часов аудио): ~$36 (~₽3600)
+- Домен: ~₽100
+- **Итого**: ~₽4500/месяц
 
-## Важные принципы
+Подробная оценка в [ARCHITECTURE.md](ARCHITECTURE.md)
 
-1. **Одна роль = один контекст**
-   - Не смешивай роли в одной сессии
-   - Каждый агент фокусируется на своей задаче
+## Roadmap
 
-2. **Четкие handoff**
-   - Явная передача контекста между агентами
-   - Документируй что сделано и что нужно дальше
+### Фаза 1: MVP (Текущая)
 
-3. **Следуй процессу**
-   - Не пропускай этапы (spec → dev → review → test)
-   - Качество важнее скорости
+- [x] Архитектура и планирование
+- [x] Структура проектов
+- [ ] Базовая функциональность desktop app
+- [ ] Backend API с OpenAI интеграцией
+- [ ] Развертывание на тестовом сервере
 
-4. **Документируй все**
-   - Каждое решение должно быть зафиксировано
-   - Обновляй module-status.md
+### Фаза 2: Улучшения
 
-## Контакты и вопросы
+- [ ] Улучшенный UI/UX
+- [ ] Дополнительные форматы экспорта
+- [ ] Темная/светлая тема
+- [ ] Горячие клавиши
+- [ ] Автообновление приложения
 
-Если агент не понимает спецификацию или нужны уточнения:
-1. Документируй вопросы
-2. Architect уточняет спецификацию
-3. Продолжай работу после уточнений
+### Фаза 3: Расширенные функции
+
+- [ ] Кастомные промпты для форматирования
+- [ ] Поддержка множества языков
+- [ ] Пакетная обработка файлов
+- [ ] Интеграция с облачными хранилищами
+- [ ] Аутентификация и мультипользовательский режим
+
+### Фаза 4: Платформы
+
+- [ ] macOS версия
+- [ ] Linux версия
+- [ ] Web версия (опционально)
+- [ ] Mobile версия (опционально)
+
+## Вклад в проект
+
+Пока проект в стадии MVP разработки, но в будущем планируется:
+
+1. Fork репозитория
+2. Создать feature branch
+3. Commit изменения
+4. Push в branch
+5. Открыть Pull Request
+
+## Лицензия
+
+MIT License
+
+## Благодарности
+
+- [OpenAI](https://openai.com/) - Whisper и GPT API
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern Python web framework
+- [Electron](https://www.electronjs.org/) - Desktop app framework
+- [React](https://react.dev/) - UI library
 
 ---
 
-
+**Сделано с ❤️ для упрощения работы с аудио транскрипцией**
