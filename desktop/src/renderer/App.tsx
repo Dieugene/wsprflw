@@ -3,6 +3,7 @@ import { Toaster, toast } from 'sonner'
 import { RecordingPanel } from './components/RecordingPanel'
 import { TranscriptionView } from './components/TranscriptionView'
 import { FormattingPanel } from './components/FormattingPanel'
+import { HistoryPanel } from './components/HistoryPanel'
 import { apiService } from './services/api.service'
 
 function App() {
@@ -71,6 +72,9 @@ function App() {
             <TranscriptionView />
             <FormattingPanel />
           </div>
+
+          {/* History Panel */}
+          <HistoryPanel />
 
           {/* Instructions */}
           <div className="rounded-lg border border-border bg-card p-6">

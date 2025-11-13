@@ -36,6 +36,10 @@ interface TranscriptionState {
   historyTotal: number
   historyPage: number
   historyHasMore: boolean
+  isLoadingHistory: boolean
+  selectedHistoryItem: string | null
+  historySearch: string
+  historyStatusFilter: string
 
   // WebSocket
   ws: WebSocket | null
@@ -47,7 +51,12 @@ interface TranscriptionState {
   resumeRecording: () => void
   uploadAudioFile: (file: File) => Promise<void>
   formatText: (formatType: FormatType, customPrompt?: string) => Promise<void>
-  loadHistory: (page?: number) => Promise<void>
+  loadHistory: (page?: number, search?: string, statusFilter?: string) => Promise<void>
+  loadTranscriptionById: (id: string) => Promise<void>
+  deleteHistoryItem: (id: string) => Promise<void>
+  setHistorySearch: (search: string) => void
+  setHistoryStatusFilter: (filter: string) => void
+  refreshHistoryOnComplete: () => void
   connectWebSocket: (jobId: string) => void
   disconnectWebSocket: () => void
   reset: () => void
@@ -70,6 +79,10 @@ const initialState = {
   historyTotal: 0,
   historyPage: 1,
   historyHasMore: false,
+  isLoadingHistory: false,
+  selectedHistoryItem: null,
+  historySearch: '',
+  historyStatusFilter: 'all',
   ws: null,
 }
 
@@ -184,6 +197,7 @@ export const useTranscriptionStore = create<TranscriptionState>((set, get) => ({
             })
             clearInterval(pollInterval)
             get().disconnectWebSocket()
+            get().refreshHistoryOnComplete()
           } else if (result.status === 'failed') {
             set({
               transcriptionStatus: result.status,
@@ -247,19 +261,120 @@ export const useTranscriptionStore = create<TranscriptionState>((set, get) => ({
   /**
    * Load transcription history
    */
-  loadHistory: async (page: number = 1) => {
+  loadHistory: async (page: number = 1, search?: string, statusFilter?: string) => {
     try {
-      const response = await apiService.getHistory(page, 20)
+      set({ isLoadingHistory: true })
+
+      // Use parameters or fall back to store state
+      const searchQuery = search !== undefined ? search : get().historySearch
+      const filter = statusFilter !== undefined ? statusFilter : get().historyStatusFilter
+
+      const response = await apiService.getHistory(page, 20, searchQuery, filter)
 
       set({
         history: page === 1 ? response.items : [...get().history, ...response.items],
         historyTotal: response.total,
         historyPage: response.page,
         historyHasMore: response.has_more,
+        isLoadingHistory: false,
       })
     } catch (error) {
       console.error('Failed to load history:', error)
+      set({ isLoadingHistory: false })
       throw error
+    }
+  },
+
+  /**
+   * Load transcription by ID and display in main view
+   */
+  loadTranscriptionById: async (id: string) => {
+    try {
+      const result = await apiService.getTranscription(id)
+
+      // Check if transcription is completed
+      if (result.status !== 'completed') {
+        throw new Error('Транскрипция еще не завершена. Пожалуйста, подождите.')
+      }
+
+      set({
+        currentJobId: result.id,
+        transcriptionStatus: result.status,
+        transcriptionText: result.transcription_text,
+        selectedHistoryItem: id,
+      })
+
+      // Load formatted text if available
+      if (result.formatted_text && result.format_type) {
+        set({
+          formattedText: result.formatted_text,
+          formatType: result.format_type,
+        })
+      } else {
+        // Clear formatted text if not available
+        set({
+          formattedText: '',
+          formatType: null,
+        })
+      }
+    } catch (error) {
+      console.error('Failed to load transcription:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Delete a history item
+   */
+  deleteHistoryItem: async (id: string) => {
+    try {
+      await apiService.deleteHistoryItem(id)
+
+      // Remove from local state
+      const { history, historyTotal, historyPage } = get()
+      const updatedHistory = history.filter((item) => item.id !== id)
+
+      set({
+        history: updatedHistory,
+        historyTotal: historyTotal - 1,
+      })
+
+      // Reload page if list is now empty and we're not on page 1
+      if (updatedHistory.length === 0 && historyPage > 1) {
+        get().loadHistory(historyPage - 1)
+      }
+    } catch (error) {
+      console.error('Failed to delete history item:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Set history search query
+   */
+  setHistorySearch: (search: string) => {
+    set({ historySearch: search })
+  },
+
+  /**
+   * Set history status filter
+   */
+  setHistoryStatusFilter: (filter: string) => {
+    set({ historyStatusFilter: filter })
+  },
+
+  /**
+   * Refresh history when a new transcription completes
+   */
+  refreshHistoryOnComplete: () => {
+    const { historyPage } = get()
+
+    // Only auto-refresh if on page 1
+    // Otherwise, just increment the total count
+    if (historyPage === 1) {
+      get().loadHistory(1)
+    } else {
+      set({ historyTotal: get().historyTotal + 1 })
     }
   },
 
@@ -290,6 +405,7 @@ export const useTranscriptionStore = create<TranscriptionState>((set, get) => ({
             transcriptionText: message.transcription_text,
           })
           get().disconnectWebSocket()
+          get().refreshHistoryOnComplete()
         } else if (message.type === 'transcription_failed') {
           set({
             transcriptionStatus: 'failed' as TranscriptionStatus,

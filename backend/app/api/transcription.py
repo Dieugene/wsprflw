@@ -281,6 +281,8 @@ async def get_transcription(
             language=transcription.language,
             audio_duration=transcription.audio_duration,
             segments=transcription.segments,
+            formatted_text=transcription.formatted_text,
+            format_type=transcription.format_type,
             created_at=transcription.created_at,
             completed_at=transcription.updated_at,
         )

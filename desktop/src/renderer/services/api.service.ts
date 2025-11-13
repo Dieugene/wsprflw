@@ -115,11 +115,25 @@ class ApiService {
   /**
    * Get transcription history
    */
-  async getHistory(page: number = 1, pageSize: number = 20): Promise<HistoryListResponse> {
-    const { data } = await this.client.get<HistoryListResponse>('/api/v1/history', {
-      params: { page, page_size: pageSize },
-    })
+  async getHistory(
+    page: number = 1,
+    pageSize: number = 20,
+    search?: string,
+    status?: string
+  ): Promise<HistoryListResponse> {
+    const params: any = { page, page_size: pageSize }
+    if (search) params.search = search
+    if (status && status !== 'all') params.status = status
+
+    const { data } = await this.client.get<HistoryListResponse>('/api/v1/history', { params })
     return data
+  }
+
+  /**
+   * Delete a history item by ID
+   */
+  async deleteHistoryItem(id: string): Promise<void> {
+    await this.client.delete(`/api/v1/history/${id}`)
   }
 
   /**

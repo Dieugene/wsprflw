@@ -83,6 +83,8 @@ class TranscriptionResultResponse(BaseModel):
     language: str
     audio_duration: Optional[float] = None
     segments: Optional[List[Dict[str, Any]]] = None
+    formatted_text: Optional[str] = None
+    format_type: Optional[FormatType] = None
     created_at: datetime
     completed_at: datetime
 

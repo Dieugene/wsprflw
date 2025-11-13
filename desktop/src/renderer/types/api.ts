@@ -50,6 +50,8 @@ export interface TranscriptionResultResponse {
   language: string
   audio_duration?: number
   segments?: any[]
+  formatted_text?: string
+  format_type?: FormatType
   created_at: string
   completed_at: string
 }
