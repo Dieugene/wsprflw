@@ -80,11 +80,13 @@ async def health_check():
     return {"status": "healthy", "environment": settings.ENVIRONMENT}
 
 
-# API v1 routes will be added here
-# from app.api.v1 import transcription, formatting, history
-# app.include_router(transcription.router, prefix="/api/v1", tags=["transcription"])
-# app.include_router(formatting.router, prefix="/api/v1", tags=["formatting"])
-# app.include_router(history.router, prefix="/api/v1", tags=["history"])
+# API v1 routes
+from app.api import transcription, formatting, history, websocket
+
+app.include_router(transcription.router, prefix="/api/v1", tags=["transcription"])
+app.include_router(formatting.router, prefix="/api/v1", tags=["formatting"])
+app.include_router(history.router, prefix="/api/v1", tags=["history"])
+app.include_router(websocket.router, prefix="/api/v1", tags=["websocket"])
 
 
 # Exception handlers

@@ -3,27 +3,32 @@ OpenAI service for transcription and formatting
 """
 
 from typing import Optional, Dict, Any
-import openai
-from tenacity import retry, stop_after_attempt, wait_exponential
+from io import BytesIO
+from openai import AsyncOpenAI
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from openai import OpenAIError, APIError, RateLimitError
 
 from app.core.config import settings
 from app.core.logging_config import logger
-
-# Configure OpenAI
-openai.api_key = settings.OPENAI_API_KEY
-if settings.OPENAI_ORG_ID:
-    openai.organization = settings.OPENAI_ORG_ID
 
 
 class OpenAIService:
     """Service for interacting with OpenAI API"""
 
-    @staticmethod
+    def __init__(self):
+        """Initialize OpenAI client"""
+        self.client = AsyncOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            organization=settings.OPENAI_ORG_ID if settings.OPENAI_ORG_ID else None,
+        )
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((APIError, RateLimitError)),
     )
     async def transcribe_audio(
+        self,
         audio_file: bytes,
         filename: str,
         language: str = "ru",
@@ -46,19 +51,17 @@ class OpenAIService:
             Dictionary with transcription result
 
         Raises:
-            openai.OpenAIError: If API request fails
+            OpenAIError: If API request fails
         """
         try:
-            logger.info(f"Transcribing audio file: {filename}")
+            logger.info(f"Transcribing audio file: {filename}, size: {len(audio_file)} bytes")
 
             # Create file-like object from bytes
-            from io import BytesIO
-
             audio_buffer = BytesIO(audio_file)
             audio_buffer.name = filename
 
-            # Call Whisper API
-            response = await openai.Audio.atranscribe(
+            # Call Whisper API using new SDK
+            response = await self.client.audio.transcriptions.create(
                 model=model,
                 file=audio_buffer,
                 language=language,
@@ -70,31 +73,34 @@ class OpenAIService:
 
             # Parse response based on format
             if response_format == "verbose_json":
+                # Response is a model object with attributes
                 return {
-                    "text": response.get("text", ""),
-                    "language": response.get("language", language),
-                    "duration": response.get("duration", 0),
-                    "segments": response.get("segments", []),
+                    "text": response.text if hasattr(response, 'text') else "",
+                    "language": response.language if hasattr(response, 'language') else language,
+                    "duration": response.duration if hasattr(response, 'duration') else 0,
+                    "segments": response.segments if hasattr(response, 'segments') else [],
                 }
             else:
+                # For simple formats, response might be just text
                 return {
-                    "text": response if isinstance(response, str) else response.get("text", ""),
+                    "text": response.text if hasattr(response, 'text') else str(response),
                     "language": language,
                 }
 
-        except openai.OpenAIError as e:
+        except OpenAIError as e:
             logger.error(f"OpenAI API error during transcription: {e}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error during transcription: {e}")
+            logger.error(f"Unexpected error during transcription: {e}", exc_info=True)
             raise
 
-    @staticmethod
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type((APIError, RateLimitError)),
     )
     async def format_text(
+        self,
         text: str,
         format_type: str,
         custom_prompt: Optional[str] = None,
@@ -117,7 +123,7 @@ class OpenAIService:
             Formatted text
 
         Raises:
-            openai.OpenAIError: If API request fails
+            OpenAIError: If API request fails
         """
         try:
             # Use defaults from settings if not provided
@@ -140,10 +146,10 @@ class OpenAIService:
                 format_type, system_prompts["custom"]
             )
 
-            logger.info(f"Formatting text with type: {format_type}")
+            logger.info(f"Formatting text with type: {format_type}, model: {model}")
 
-            # Call GPT API
-            response = await openai.ChatCompletion.acreate(
+            # Call GPT API using new SDK
+            response = await self.client.chat.completions.create(
                 model=model,
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -158,11 +164,11 @@ class OpenAIService:
 
             return formatted_text
 
-        except openai.OpenAIError as e:
+        except OpenAIError as e:
             logger.error(f"OpenAI API error during formatting: {e}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected error during formatting: {e}")
+            logger.error(f"Unexpected error during formatting: {e}", exc_info=True)
             raise
 
 
