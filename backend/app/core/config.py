@@ -75,6 +75,10 @@ class Settings(BaseSettings):
         default="/tmp/whisperflow/uploads",
         description="Directory for uploaded files"
     )
+    AUDIO_STORAGE_DIR: str = Field(
+        default="./audio_storage",
+        description="Directory for permanent audio file storage"
+    )
 
     # Task Queue
     CELERY_BROKER_URL: str = Field(

@@ -65,6 +65,7 @@ class Transcription(Base):
 
     # Audio metadata
     audio_filename = Column(String(255), nullable=True)
+    audio_file_path = Column(String(512), nullable=True)  # Path to saved audio file
     audio_duration = Column(Float, nullable=True)  # in seconds
     audio_size_bytes = Column(Integer, nullable=True)
     audio_format = Column(String(10), nullable=True)  # mp3, wav, etc
@@ -109,6 +110,7 @@ class Transcription(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "audio_filename": self.audio_filename,
+            "audio_file_path": self.audio_file_path,
             "audio_duration": self.audio_duration,
             "audio_size_bytes": self.audio_size_bytes,
             "audio_format": self.audio_format,

@@ -2,8 +2,11 @@
 Transcription API endpoints
 """
 
+import os
+import aiofiles
 from uuid import UUID
 from typing import Optional
+from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -22,6 +25,9 @@ from app.services.openai_service import openai_service
 from app.core.config import settings
 
 router = APIRouter()
+
+# Ensure audio storage directory exists
+os.makedirs(settings.AUDIO_STORAGE_DIR, exist_ok=True)
 
 
 async def process_transcription(
@@ -166,7 +172,7 @@ async def create_transcription(
             f"Creating transcription job for file: {file.filename}, size: {file_size} bytes"
         )
 
-        # Create transcription record
+        # Create transcription record (without audio_file_path yet)
         transcription = Transcription(
             audio_filename=file.filename,
             audio_size_bytes=file_size,
@@ -181,6 +187,25 @@ async def create_transcription(
         db.add(transcription)
         await db.commit()
         await db.refresh(transcription)
+
+        # Save audio file to permanent storage
+        audio_filename = f"{transcription.id}.{file_ext}"
+        audio_file_path = os.path.join(settings.AUDIO_STORAGE_DIR, audio_filename)
+
+        try:
+            async with aiofiles.open(audio_file_path, 'wb') as f:
+                await f.write(audio_data)
+
+            # Update transcription with file path
+            transcription.audio_file_path = audio_file_path
+            await db.commit()
+            await db.refresh(transcription)
+
+            logger.info(f"Audio file saved to: {audio_file_path}")
+        except Exception as e:
+            logger.error(f"Failed to save audio file: {e}")
+            # Continue with transcription even if file save fails
+            pass
 
         # Start background task for transcription
         background_tasks.add_task(
@@ -264,4 +289,109 @@ async def get_transcription(
         raise
     except Exception as e:
         logger.error(f"Error getting transcription {transcription_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.post(
+    "/transcribe/{transcription_id}/retry",
+    response_model=TranscriptionJobResponse,
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    summary="Retry transcription from saved audio",
+    description="Retry transcription using the saved audio file from a previous transcription",
+)
+async def retry_transcription(
+    transcription_id: UUID,
+    background_tasks: BackgroundTasks,
+    language: str = "ru",
+    model: str = "whisper-1",
+    temperature: float = 0.0,
+    response_format: str = "verbose_json",
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retry transcription from a saved audio file
+
+    - **transcription_id**: UUID of the original transcription
+    - **language**: Language code (default: ru)
+    - **model**: Whisper model (default: whisper-1)
+    - **temperature**: Sampling temperature 0-1 (default: 0.0)
+    - **response_format**: Response format (default: verbose_json)
+    """
+    try:
+        # Get original transcription
+        result = await db.execute(
+            select(Transcription).where(Transcription.id == transcription_id)
+        )
+        original_transcription = result.scalar_one_or_none()
+
+        if not original_transcription:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Transcription {transcription_id} not found",
+            )
+
+        if not original_transcription.audio_file_path:
+            raise HTTPException(
+                status_code=404,
+                detail="Audio file not found for this transcription. Cannot retry.",
+            )
+
+        # Check if audio file exists
+        if not os.path.exists(original_transcription.audio_file_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Audio file not found at {original_transcription.audio_file_path}",
+            )
+
+        logger.info(
+            f"Retrying transcription {transcription_id} from file: {original_transcription.audio_file_path}"
+        )
+
+        # Read audio file
+        async with aiofiles.open(original_transcription.audio_file_path, 'rb') as f:
+            audio_data = await f.read()
+
+        # Create new transcription record
+        new_transcription = Transcription(
+            audio_filename=original_transcription.audio_filename,
+            audio_file_path=original_transcription.audio_file_path,  # Reuse same file
+            audio_size_bytes=original_transcription.audio_size_bytes,
+            audio_format=original_transcription.audio_format,
+            language=language,
+            model=model,
+            temperature=temperature,
+            status=TranscriptionStatus.PENDING,
+            progress=0,
+        )
+
+        db.add(new_transcription)
+        await db.commit()
+        await db.refresh(new_transcription)
+
+        # Start background task for transcription
+        background_tasks.add_task(
+            process_transcription,
+            new_transcription.id,
+            audio_data,
+            original_transcription.audio_filename,
+            language,
+            model,
+            temperature,
+            response_format,
+        )
+
+        logger.info(f"Retry transcription job created with ID: {new_transcription.id}")
+
+        return TranscriptionJobResponse(
+            id=new_transcription.id,
+            status=new_transcription.status,
+            progress=new_transcription.progress,
+            created_at=new_transcription.created_at,
+            message="Transcription retry job created successfully",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrying transcription {transcription_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
